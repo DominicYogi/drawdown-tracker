@@ -1,44 +1,47 @@
 import streamlit as st
 
-def drawdown_tracker(starting_balance, static_dd_percent, daily_dd_percent, balances):
-    static_dd_value = starting_balance * (static_dd_percent / 100)
-    static_floor = starting_balance - static_dd_value
+st.set_page_config(page_title="$5 Flip Tracker", layout="centered")
+st.title("$5 Flip Risk Tracker")
 
-    results = []
-    for day, balance in enumerate(balances, start=1):
-        daily_dd_limit = balance * (daily_dd_percent / 100)
-        min_allowed_today = balance - daily_dd_limit
-        status = "✅ OK"
-        if balance < static_floor:
-            status = "❌ Breached Static DD"
-        elif balance < min_allowed_today:
-            status = "❌ Breached Daily DD"
+# Initialize session state
+if "balance" not in st.session_state:
+    st.session_state.balance = 5.0
+if "history" not in st.session_state:
+    st.session_state.history = []
 
-        results.append({
-            "Day": f"Day {day}",
-            "Balance": balance,
-            "Daily DD Limit": round(daily_dd_limit, 2),
-            "Min Allowed Today": round(min_allowed_today, 2),
-            "Static Floor": round(static_floor, 2),
-            "Status": status
-        })
+# Input risk amount
+risk = st.number_input("Risk per Trade ($)", min_value=0.1, max_value=5.0, value=2.0, step=0.1)
 
-    return results
+# Display current balance
+st.metric("Current Balance", f"${st.session_state.balance:.2f}")
 
-st.title("Drawdown Tracker Tool for Prop Firm Challenges")
+# Calculate remaining trades
+trades_left = int(st.session_state.balance // risk)
+st.write(f"Trades Remaining at current risk: {trades_left}")
 
-starting_balance = st.number_input("Starting Balance ($)", value=2000)
-static_dd_percent = st.number_input("Static Drawdown (%)", value=3.0)
-daily_dd_percent = st.number_input("Daily Drawdown (%)", value=2.0)
+col1, col2 = st.columns(2)
 
-balance_input = st.text_area("Enter Daily Balances (comma-separated)", "2500, 2450, 2400, 2350, 2300")
+# Define win and loss buttons
+with col1:
+    if st.button("Win Trade"):
+        st.session_state.balance += risk
+        st.session_state.history.append(("Win", risk, st.session_state.balance))
 
-if st.button("Calculate"):
-    try:
-        balances = list(map(float, balance_input.split(',')))
-        results = drawdown_tracker(starting_balance, static_dd_percent, daily_dd_percent, balances)
+with col2:
+    if st.button("Lose Trade"):
+        st.session_state.balance -= risk
+        st.session_state.history.append(("Loss", -risk, st.session_state.balance))
+        if st.session_state.balance <= 0:
+            st.warning("Account busted! Reload to restart.")
 
-        st.write("### Results:")
-        st.table(results)
-    except Exception as e:
-        st.error(f"Error: {e}")
+# History
+if st.session_state.history:
+    st.subheader("Trade History")
+    for i, (result, change, bal) in enumerate(reversed(st.session_state.history), 1):
+        st.write(f"{i}. {result}: {'+' if change > 0 else ''}${change:.2f} → ${bal:.2f}")
+
+# Reset
+if st.button("Reset Tracker"):
+    st.session_state.balance = 5.0
+    st.session_state.history = []
+    st.success("Tracker reset to $5.")
